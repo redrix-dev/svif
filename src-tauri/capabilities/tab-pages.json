@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tab-pages",
+  "description": "Minimal capability for tab webviews. Its real purpose is to get Tauri's IPC injected into web pages so the reporter init script can invoke the page-scoped commands (report_page_state, open_tab_from_page, page_shortcut). Those commands verify the caller's webview label server-side; everything else rejects non-chrome callers.",
+  "webviews": ["tab-*"],
+  "remote": {
+    "urls": ["http://*", "https://*", "http://**", "https://**"]
+  },
+  "permissions": [
+    "allow-report-page-state",
+    "allow-open-tab-from-page",
+    "allow-page-shortcut"
+  ]
+}

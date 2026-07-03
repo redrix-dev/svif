@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Tab</title>
+    <script type="module" src="/src/newtab.ts" defer></script>
+    <style>
+      * {
+        margin: 0;
+        box-sizing: border-box;
+      }
+      :root {
+        --accent: #6aa5ff;
+        --text: rgba(255, 255, 255, 0.92);
+        --text-dim: rgba(255, 255, 255, 0.55);
+        --field: rgba(255, 255, 255, 0.08);
+        --border: rgba(255, 255, 255, 0.1);
+        --page: linear-gradient(160deg, #1b1d27 0%, #12131b 100%);
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
+          system-ui, "Ubuntu", "Cantarell", sans-serif;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        display: grid;
+        place-items: center;
+        background: var(--page);
+        font-family: var(--font);
+        color: var(--text);
+        user-select: none;
+      }
+      main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        transform: translateY(-6vh);
+      }
+      #clock {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text-dim);
+        letter-spacing: 0.04em;
+        font-variant-numeric: tabular-nums;
+      }
+      h1 {
+        font-size: 44px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        background: linear-gradient(120deg, var(--text) 40%, var(--accent));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      p.tagline {
+        font-size: 14px;
+        color: var(--text-dim);
+        margin-top: -8px;
+        letter-spacing: 0.02em;
+      }
+      form {
+        margin-top: 14px;
+        width: min(520px, 82vw);
+      }
+      input {
+        width: 100%;
+        height: 46px;
+        padding: 0 20px;
+        border: 1px solid var(--border);
+        border-radius: 23px;
+        background: var(--field);
+        color: var(--text);
+        font: 15px var(--font);
+        outline: none;
+        backdrop-filter: blur(20px);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      input::placeholder {
+        color: var(--text-dim);
+      }
+      input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="clock"></div>
+      <h1>Svif</h1>
+      <p class="tagline">glide, simply.</p>
+      <form id="search">
+        <input id="q" type="text" placeholder="Search or enter address" autofocus spellcheck="false" />
+      </form>
+    </main>
+  </body>
+</html>

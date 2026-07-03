@@ -1,0 +1,29 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "chrome-ui",
+  "description": "Full capability set for the browser's own chrome webview (tab strip, toolbar, settings). Never granted to tab webviews.",
+  "webviews": ["chrome"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "allow-settings-get",
+    "allow-settings-set",
+    "allow-tabs-snapshot",
+    "allow-tab-new",
+    "allow-tab-close",
+    "allow-tab-select",
+    "allow-tab-navigate",
+    "allow-tab-mute",
+    "allow-tab-zoom",
+    "allow-tab-sleep",
+    "allow-browser-action",
+    "allow-set-overlay",
+    "allow-find-in-page",
+    "allow-clear-browsing-data",
+    "allow-open-devtools"
+  ]
+}

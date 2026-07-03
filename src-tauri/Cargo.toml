@@ -1,0 +1,29 @@
+[package]
+name = "svif"
+version = "0.1.0"
+description = "Glide, simply."
+authors = ["Redrix"]
+edition = "2021"
+
+[lib]
+name = "svif_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# `unstable` unlocks the multi-webview API (raw Window + child webviews) that the
+# whole tab system is built on. `macos-private-api` is required for window
+# transparency, which the vibrancy effect needs. `devtools` enables the
+# per-tab inspector in release builds too.
+tauri = { version = "2", features = ["unstable", "macos-private-api", "devtools"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
