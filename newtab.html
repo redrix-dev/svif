@@ -33,11 +33,27 @@
         user-select: none;
       }
       main {
+        position: relative;
+        z-index: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 14px;
         transform: translateY(-6vh);
+      }
+      /* Ambient particle field — drawn behind the content, never intercepts
+         the cursor (particles react via a window-level pointer listener). */
+      #bg {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+      }
+      .now {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
       }
       #clock {
         font-size: 15px;
@@ -45,6 +61,12 @@
         color: var(--text-dim);
         letter-spacing: 0.04em;
         font-variant-numeric: tabular-nums;
+      }
+      #date {
+        font-size: 12px;
+        color: var(--text-dim);
+        opacity: 0.8;
+        letter-spacing: 0.03em;
       }
       h1 {
         font-size: 44px;
@@ -88,10 +110,14 @@
     </style>
   </head>
   <body>
+    <canvas id="bg"></canvas>
     <main>
-      <div id="clock"></div>
+      <div class="now">
+        <div id="clock"></div>
+        <div id="date"></div>
+      </div>
       <h1>Svif</h1>
-      <p class="tagline">glide, simply.</p>
+      <p class="tagline">Surf, swiftly.</p>
       <form id="search">
         <input id="q" type="text" placeholder="Search or enter address" autofocus spellcheck="false" />
       </form>

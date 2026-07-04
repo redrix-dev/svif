@@ -169,6 +169,17 @@ export function SettingsPanel() {
                     <option value="mono">Mono</option>
                   </select>
                 </Row>
+                <Row
+                  label="Festive fireworks 🎆"
+                  hint="Trades the start page's constellation for fireworks. Pairs with the Americana theme; click the page to launch one."
+                >
+                  <input
+                    type="checkbox"
+                    class="switch"
+                    checked={cfg.festive}
+                    onChange={(e) => set({ festive: e.currentTarget.checked })}
+                  />
+                </Row>
               </Section>
 
               <Section title="Browsing">
@@ -285,7 +296,7 @@ export function SettingsPanel() {
               </Section>
 
               <footer class="settings-footer">
-                Svif {env().version} · Tauri + Solid · glide, simply.
+                Svif {env().version} · Tauri + Solid · Surf, swiftly.
               </footer>
             </>
           )}

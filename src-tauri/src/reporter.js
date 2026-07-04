@@ -33,8 +33,12 @@
   }
 
   function faviconUrl() {
-    const links = document.querySelectorAll('link[rel~="icon"], link[rel="shortcut icon"]');
-    const href = links.length ? links[links.length - 1].getAttribute("href") : "/favicon.ico";
+    const links = document.querySelectorAll(
+      'link[rel~="icon"], link[rel="shortcut icon"]',
+    );
+    const href = links.length
+      ? links[links.length - 1].getAttribute("href")
+      : "/favicon.ico";
     try {
       return new URL(href, location.href).href;
     } catch (_) {
@@ -43,11 +47,16 @@
   }
 
   function snapshot() {
-    report({
+    const patch = {
       url: location.href,
       title: document.title || location.hostname || location.href,
       favicon: faviconUrl(),
-    });
+    };
+    // Clear the loading spinner off the page's OWN load state. wry's Finished
+    // event is unreliable on streaming SPAs (Twitch, etc.), so trust the
+    // document. Only ever reports false — Rust owns setting loading true.
+    if (document.readyState === "complete") patch.loading = false;
+    report(patch);
   }
 
   // SPA navigations don't hit the native navigation hooks; patch history.
@@ -86,7 +95,14 @@
     if (CFG.muted) el.muted = true;
   }
 
-  for (const ev of ["play", "playing", "pause", "ended", "emptied", "volumechange"]) {
+  for (const ev of [
+    "play",
+    "playing",
+    "pause",
+    "ended",
+    "emptied",
+    "volumechange",
+  ]) {
     document.addEventListener(
       ev,
       (e) => {
@@ -96,7 +112,7 @@
         if (CFG.muted && !el.muted) el.muted = true; // re-assert against site JS
         updateAudio();
       },
-      true
+      true,
     );
   }
   setInterval(() => {
@@ -139,22 +155,38 @@
       invoke("open_tab_from_page", { url: new URL(url, location.href).href });
     } catch (_) {}
   };
-  const origOpen = window.open ? window.open.bind(window) : null;
   window.open = (url) => {
-    if (url) openTab(String(url));
-    return null;
+    // URL up front → open a tab now.
+    if (url) {
+      openTab(String(url));
+      return null;
+    }
+    // Deferred: the page opened a blank window to hold the user gesture and
+    // will set .location after its own confirm ("leaving X.com?"). Return a
+    // stub that opens a tab only when that assignment actually happens — so we
+    // never open eagerly, and the site's confirm runs first. Not a full window
+    // (no document/postMessage/closed polling) — just the location paths that
+    // real interstitials use.
+    const go = (u) => { if (u) openTab(String(u)); };
+    return {
+      set location(u) { go(u); },
+      get location() { return { set href(u) { go(u); }, assign: go, replace: go }; },
+      focus() {},
+      close() {},
+      closed: false,
+    };
   };
-  document.addEventListener(
-    "click",
-    (e) => {
-      const a = e.target && e.target.closest ? e.target.closest("a[target=_blank]") : null;
-      if (a && a.href) {
-        e.preventDefault();
-        openTab(a.href);
-      }
-    },
-    true
-  );
+  document.addEventListener("click", (e) => {
+    const a =
+      e.target && e.target.closest
+        ? e.target.closest("a[target=_blank]")
+        : null;
+    if (e.defaultPrevented) return;
+    if (a && a.href) {
+      e.preventDefault();
+      openTab(a.href);
+    }
+  });
 
   // ---- browser keyboard shortcuts while a page has focus ----
   addEventListener(
@@ -186,6 +218,6 @@
         invoke("page_shortcut", { action });
       }
     },
-    true
+    true,
   );
 })();

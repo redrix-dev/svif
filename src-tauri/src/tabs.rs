@@ -39,6 +39,9 @@ const FIND_H: f64 = 44.0;
 const NEWTAB: &str = "about:newtab";
 const REPORTER: &str = include_str!("reporter.js");
 const ZOOM_STEPS: [u32; 15] = [25, 33, 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300];
+/// A spinner is force-cleared after this long. Safety net for streaming SPAs
+/// (Twitch, etc.) whose navigation the engine never reports as "finished".
+const LOADING_TIMEOUT: Duration = Duration::from_secs(30);
 
 // ---------------------------------------------------------------------------
 // State
@@ -50,6 +53,8 @@ struct Tab {
     title: String,
     favicon: Option<String>,
     loading: bool,
+    /// When the current load began, for the spinner timeout net. `None` when idle.
+    load_started: Option<Instant>,
     /// Any media element is playing (even muted) — exempts from sleep.
     playing: bool,
     /// Actually producing sound.
@@ -123,6 +128,39 @@ pub fn broadcast(app: &AppHandle) {
     let _ = app.emit_to("chrome", "tabs-state", payload);
 }
 
+/// Push a theme palette into every awake tab so open start pages re-skin live.
+/// Regular sites define no `__SB_APPLY_THEME`, so the eval is a harmless no-op
+/// there. Called by the settings store whenever the palette changes.
+pub fn apply_theme_to_tabs(app: &AppHandle, colors: &Value) {
+    let labels: Vec<String> = {
+        let inner = lock(app);
+        inner.tabs.iter().filter(|t| !t.asleep).map(|t| t.label()).collect()
+    };
+    let js = format!(
+        "window.__SB_APPLY_THEME&&window.__SB_APPLY_THEME({})",
+        colors
+    );
+    for label in labels {
+        if let Some(view) = app.get_webview(&label) {
+            let _ = view.eval(js.as_str());
+        }
+    }
+}
+
+/// Toggle festive fireworks on open start pages live (regular sites no-op).
+pub fn apply_festive_to_tabs(app: &AppHandle, festive: bool) {
+    let labels: Vec<String> = {
+        let inner = lock(app);
+        inner.tabs.iter().filter(|t| !t.asleep).map(|t| t.label()).collect()
+    };
+    let js = format!("window.__SB_SET_FESTIVE&&window.__SB_SET_FESTIVE({festive})");
+    for label in labels {
+        if let Some(view) = app.get_webview(&label) {
+            let _ = view.eval(js.as_str());
+        }
+    }
+}
+
 /// Positions the chrome webview and the active tab webview inside the window.
 /// Overlay::Find pushes the page down to make room for the find bar;
 /// Overlay::Full hands the whole window to the chrome (menus/settings render
@@ -192,6 +230,7 @@ fn reporter_script(app: &AppHandle, muted: bool, zoom: u32) -> String {
         "zoom": zoom,
         "engine": s.search_engine,
         "theme": s.theme_colors,
+        "festive": s.festive,
     });
     REPORTER.replace("__SB_CONFIG__", &cfg.to_string())
 }
@@ -206,10 +245,12 @@ fn on_page_load(webview: &Webview, url: &Url, event: PageLoadEvent) {
             match event {
                 PageLoadEvent::Started => {
                     tab.loading = true;
+                    tab.load_started = Some(Instant::now());
                     tab.url = url.to_string();
                 }
                 PageLoadEvent::Finished => {
                     tab.loading = false;
+                    tab.load_started = None;
                     apply = Some((tab.muted, tab.zoom));
                 }
             }
@@ -331,6 +372,7 @@ pub fn create_tab(app: &AppHandle, url: Option<String>, background: bool) {
             title: "New Tab".into(),
             favicon: None,
             loading: true,
+            load_started: Some(Instant::now()),
             playing: false,
             audible: false,
             muted: false,
@@ -689,6 +731,7 @@ fn restore_session(app: &AppHandle) -> bool {
                 title: if t.title.is_empty() { "New Tab".into() } else { t.title.clone() },
                 favicon: None,
                 loading: false,
+                load_started: None,
                 playing: false,
                 audible: false,
                 muted: false,
@@ -788,6 +831,31 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         let app = app.clone();
         move || loop {
             std::thread::sleep(Duration::from_secs(20));
+
+            // Force-clear any spinner stuck past the timeout — a streaming SPA
+            // can start a navigation the engine never reports as finished, and
+            // the reporter's page-load clear can miss if its IPC never lands.
+            // Runs regardless of the sleep setting.
+            {
+                let mut inner = lock(&app);
+                let mut changed = false;
+                for t in inner.tabs.iter_mut() {
+                    if t.loading
+                        && t.load_started
+                            .map(|start| start.elapsed() > LOADING_TIMEOUT)
+                            .unwrap_or(false)
+                    {
+                        t.loading = false;
+                        t.load_started = None;
+                        changed = true;
+                    }
+                }
+                drop(inner);
+                if changed {
+                    broadcast(&app);
+                }
+            }
+
             let s = app.state::<SettingsStore>().get();
             if !s.sleep_enabled {
                 continue;
@@ -1018,6 +1086,14 @@ pub fn report_page_state(webview: Webview, app: AppHandle, patch: Map<String, Va
                 ("favicon", Value::String(s)) => tab.favicon = Some(s),
                 ("playing", Value::Bool(b)) => tab.playing = b,
                 ("audible", Value::Bool(b)) => tab.audible = b && !tab.muted,
+                // The reporter clears the spinner off the page's real load
+                // state (see reporter.js); it never sets it true.
+                ("loading", Value::Bool(b)) => {
+                    tab.loading = b;
+                    if !b {
+                        tab.load_started = None;
+                    }
+                }
                 _ => {}
             }
         }

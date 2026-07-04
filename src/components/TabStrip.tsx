@@ -1,10 +1,10 @@
-// The tab strip. Tabs shrink to fit (10+ comfortably), the empty area drags
-// the window, and per-tab audio/sleep state renders inline. Middle-click
-// closes, like every browser since 2001.
+// The tab strip (bottom row, Safari-style). Tabs shrink to fit (10+
+// comfortably), the empty area drags the window, and per-tab audio/sleep
+// state renders inline. Middle-click closes, like every browser since 2001.
 
 import { For, Show } from "solid-js";
 import * as ipc from "../ipc";
-import { env, tabs } from "../state";
+import { tabs } from "../state";
 import type { TabInfo } from "../types";
 import {
   IconClose,
@@ -14,7 +14,6 @@ import {
   IconSpeaker,
   IconSpeakerMuted,
 } from "./icons";
-import { WindowButtons } from "./WindowButtons";
 
 function Tab(props: { tab: TabInfo }) {
   const t = () => props.tab;
@@ -71,9 +70,6 @@ function Tab(props: { tab: TabInfo }) {
 export function TabStrip() {
   return (
     <div class="tabstrip" data-tauri-drag-region>
-      <Show when={env().platform === "macos"}>
-        <div class="traffic-spacer" data-tauri-drag-region />
-      </Show>
       <div class="tabs">
         <For each={tabs()}>{(tab) => <Tab tab={tab} />}</For>
       </div>
@@ -81,9 +77,6 @@ export function TabStrip() {
         <IconPlus />
       </button>
       <div class="drag-fill" data-tauri-drag-region />
-      <Show when={env().platform !== "macos"}>
-        <WindowButtons />
-      </Show>
     </div>
   );
 }

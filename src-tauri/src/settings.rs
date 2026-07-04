@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, Runtime, Webview};
+use tauri::{AppHandle, Emitter, Manager, Webview};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,6 +33,9 @@ pub struct Settings {
     pub restore_session: bool,
     #[serde(default = "d_zoom")]
     pub default_zoom: u32,
+    /// Festive fireworks on the start page (July 4th toggle).
+    #[serde(default)]
+    pub festive: bool,
     /// Resolved color palette of the active theme, written by the chrome UI.
     /// Rust forwards it into the new-tab page so it matches the chrome.
     #[serde(default)]
@@ -79,7 +82,7 @@ impl SettingsStore {
     }
 }
 
-pub fn init<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+pub fn init(app: &AppHandle) -> tauri::Result<()> {
     let path = app.path().app_config_dir()?.join("settings.json");
     let current = fs::read_to_string(&path)
         .ok()
@@ -92,7 +95,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-fn require_chrome<R: Runtime>(webview: &Webview<R>) -> Result<(), String> {
+fn require_chrome(webview: &Webview) -> Result<(), String> {
     if webview.label() == "chrome" {
         Ok(())
     } else {
@@ -101,7 +104,7 @@ fn require_chrome<R: Runtime>(webview: &Webview<R>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn settings_get<R: Runtime>(webview: Webview<R>, app: AppHandle<R>) -> Result<Settings, String> {
+pub fn settings_get(webview: Webview, app: AppHandle) -> Result<Settings, String> {
     require_chrome(&webview)?;
     Ok(app.state::<SettingsStore>().get())
 }
@@ -110,9 +113,9 @@ pub fn settings_get<R: Runtime>(webview: Webview<R>, app: AppHandle<R>) -> Resul
 /// chrome UI. Merging as JSON keeps Rust out of the business of knowing every
 /// UI-owned field.
 #[tauri::command]
-pub fn settings_set<R: Runtime>(
-    webview: Webview<R>,
-    app: AppHandle<R>,
+pub fn settings_set(
+    webview: Webview,
+    app: AppHandle,
     patch: Map<String, Value>,
 ) -> Result<Settings, String> {
     require_chrome(&webview)?;
@@ -131,5 +134,8 @@ pub fn settings_set<R: Runtime>(
     *store.current.lock().unwrap() = updated.clone();
     store.save(&updated);
     let _ = app.emit_to("chrome", "settings-changed", &updated);
+    // Re-skin already-open start pages in place (regular sites ignore it).
+    crate::tabs::apply_theme_to_tabs(&app, &updated.theme_colors);
+    crate::tabs::apply_festive_to_tabs(&app, updated.festive);
     Ok(updated)
 }

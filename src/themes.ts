@@ -80,6 +80,21 @@ export const BUNDLED_THEMES: Theme[] = [
       page: "linear-gradient(160deg,#f9edf1 0%,#f2dfe6 100%)",
     },
   },
+  {
+    id: "americana",
+    name: "Americana",
+    dark: true,
+    colors: {
+      accent: "#e23b4e",
+      text: "rgba(240,244,255,0.94)",
+      textDim: "rgba(240,244,255,0.55)",
+      glass: "rgba(10,18,42,0.50)",
+      surface: "rgba(13,21,48,0.92)",
+      border: "rgba(120,150,220,0.18)",
+      field: "rgba(120,150,220,0.10)",
+      page: "linear-gradient(160deg,#0b1636 0%,#070c1c 100%)",
+    },
+  },
 ];
 
 export const THEME_TEMPLATE = `{

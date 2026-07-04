@@ -97,7 +97,7 @@ export function MenuPopover() {
         <span>Settings…</span>
       </button>
 
-      <div class="menu-footer">Svif {env().version} — glide, simply.</div>
+      <div class="menu-footer">Svif {env().version} · Surf, swiftly.</div>
     </div>
   );
 }

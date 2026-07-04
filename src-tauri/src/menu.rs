@@ -17,7 +17,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let app_menu = SubmenuBuilder::new(app, "Svif")
         .about(Some(AboutMetadata {
             name: Some("Svif".into()),
-            comments: Some("glide, simply.".into()),
+            comments: Some("Surf, swiftly.".into()),
             ..Default::default()
         }))
         .separator()

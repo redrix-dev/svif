@@ -59,6 +59,8 @@ export interface Settings {
   sleepKeepMedia: boolean;
   restoreSession: boolean;
   defaultZoom: number;
+  /** Festive fireworks on the start page (July 4th toggle). */
+  festive: boolean;
   themeColors: ThemeColors | null;
   customThemes: Theme[];
 }

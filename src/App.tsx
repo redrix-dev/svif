@@ -1,4 +1,5 @@
 import { Show, createEffect, onMount } from "solid-js";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./styles.css";
 import * as ipc from "./ipc";
 import {
@@ -21,7 +22,13 @@ export default function App() {
 
   createEffect(() => {
     const s = settings();
-    if (s) applyTheme(resolveTheme(s.theme, s.customThemes), s.uiFont);
+    if (!s) return;
+    const theme = resolveTheme(s.theme, s.customThemes);
+    applyTheme(theme, s.uiFont);
+    // Match the native window appearance (and thus the macOS vibrancy / Windows
+    // acrylic material) to the theme, so a light theme doesn't show dark system
+    // vibrancy through the translucent chrome — the "dark topper".
+    void getCurrentWindow().setTheme(theme.dark ? "dark" : "light");
   });
 
   // Linux gets an opaque painted backdrop; macOS/Windows show native blur
@@ -71,8 +78,8 @@ export default function App() {
 
   return (
     <div class="chrome" onKeyDown={onKeyDown} tabIndex={-1}>
-      <TabStrip />
       <Toolbar />
+      <TabStrip />
       <Show when={ui() === "find"}>
         <FindBar />
       </Show>
