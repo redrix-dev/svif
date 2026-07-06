@@ -344,6 +344,20 @@ fn spawn_webview(app: &AppHandle, id: u32) {
         ) {
             Ok(view) => {
                 if is_active {
+                    let others: Vec<String> = {
+                        let inner = lock(&app);
+                        inner
+                        .tabs
+                        .iter()
+                        .filter(|t| !t.asleep && t.id != id)
+                        .map(|t| t.label())
+                        .collect()
+                    };
+                    for label in others {
+                        if let Some(v) = app.get_webview(&label) {
+                            let _ = v.hide();
+                        }
+                    }
                     let _ = view.set_focus();
                 } else {
                     let _ = view.hide();
@@ -362,7 +376,7 @@ pub fn create_tab(app: &AppHandle, url: Option<String>, background: bool) {
         return;
     }
     let default_zoom = app.state::<SettingsStore>().get().default_zoom;
-    let (id, prev) = {
+    let id = {
         let mut inner = lock(app);
         let id = inner.next_id;
         inner.next_id += 1;
@@ -380,25 +394,12 @@ pub fn create_tab(app: &AppHandle, url: Option<String>, background: bool) {
             zoom: default_zoom,
             backgrounded_at: Instant::now(),
         });
-        let prev = inner.active;
         if !background {
             inner.active = Some(id);
         }
-        (id, prev)
+        id
     };
-    if !background {
-        if let Some(prev_label) = tab_label(app, prev) {
-            if let Some(v) = app.get_webview(&prev_label) {
-                let _ = v.hide();
-            }
-        }
-    }
     spawn_webview(app, id);
-}
-
-fn tab_label(app: &AppHandle, id: Option<u32>) -> Option<String> {
-    let inner = lock(app);
-    id.and_then(|id| inner.tabs.iter().find(|t| t.id == id)).map(|t| t.label())
 }
 
 pub fn select_tab(app: &AppHandle, id: u32) {
@@ -427,9 +428,10 @@ pub fn select_tab(app: &AppHandle, id: u32) {
         }
         (prev_label, needs_wake, tab.label())
     };
-
-    if let Some(prev) = prev_label.and_then(|l| app.get_webview(&l)) {
-        let _ = prev.hide();
+    if !needs_wake {
+        if let Some(prev) = prev_label.and_then(|l| app.get_webview(&l)) {
+            let _ = prev.hide();
+        }
     }
     if needs_wake {
         spawn_webview(app, id);
@@ -792,7 +794,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
     }
     #[cfg(target_os = "windows")]
     {
-        win_builder = win_builder.transparent(true);
+        win_builder = win_builder.transparent(true).decorations(false);
     }
     #[cfg(target_os = "linux")]
     {
