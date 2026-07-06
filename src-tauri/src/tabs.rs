@@ -38,7 +38,9 @@ pub const CHROME_H: f64 = 86.0;
 const FIND_H: f64 = 44.0;
 const NEWTAB: &str = "about:newtab";
 const REPORTER: &str = include_str!("reporter.js");
-const ZOOM_STEPS: [u32; 15] = [25, 33, 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300];
+const ZOOM_STEPS: [u32; 15] = [
+    25, 33, 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300,
+];
 /// A spinner is force-cleared after this long. Safety net for streaming SPAs
 /// (Twitch, etc.) whose navigation the engine never reports as "finished".
 const LOADING_TIMEOUT: Duration = Duration::from_secs(30);
@@ -134,7 +136,12 @@ pub fn broadcast(app: &AppHandle) {
 pub fn apply_theme_to_tabs(app: &AppHandle, colors: &Value) {
     let labels: Vec<String> = {
         let inner = lock(app);
-        inner.tabs.iter().filter(|t| !t.asleep).map(|t| t.label()).collect()
+        inner
+            .tabs
+            .iter()
+            .filter(|t| !t.asleep)
+            .map(|t| t.label())
+            .collect()
     };
     let js = format!(
         "window.__SB_APPLY_THEME&&window.__SB_APPLY_THEME({})",
@@ -151,7 +158,12 @@ pub fn apply_theme_to_tabs(app: &AppHandle, colors: &Value) {
 pub fn apply_festive_to_tabs(app: &AppHandle, festive: bool) {
     let labels: Vec<String> = {
         let inner = lock(app);
-        inner.tabs.iter().filter(|t| !t.asleep).map(|t| t.label()).collect()
+        inner
+            .tabs
+            .iter()
+            .filter(|t| !t.asleep)
+            .map(|t| t.label())
+            .collect()
     };
     let js = format!("window.__SB_SET_FESTIVE&&window.__SB_SET_FESTIVE({festive})");
     for label in labels {
@@ -167,8 +179,12 @@ pub fn apply_festive_to_tabs(app: &AppHandle, festive: bool) {
 /// on frosted glass, the page is hidden because child webviews cannot be
 /// z-reordered).
 fn layout(app: &AppHandle) {
-    let Some(window) = app.get_window("main") else { return };
-    let Ok(size) = window.inner_size() else { return };
+    let Some(window) = app.get_window("main") else {
+        return;
+    };
+    let Ok(size) = window.inner_size() else {
+        return;
+    };
     let scale = window.scale_factor().unwrap_or(1.0);
     let (overlay, active_label) = {
         let inner = lock(app);
@@ -195,7 +211,10 @@ fn layout(app: &AppHandle) {
     if let Some(view) = active_label.and_then(|l| app.get_webview(&l)) {
         if page_visible {
             let _ = view.set_position(PhysicalPosition::new(0, page_y as i32));
-            let _ = view.set_size(PhysicalSize::new(size.width, size.height.saturating_sub(page_y)));
+            let _ = view.set_size(PhysicalSize::new(
+                size.width,
+                size.height.saturating_sub(page_y),
+            ));
             let _ = view.show();
         } else {
             let _ = view.hide();
@@ -292,7 +311,11 @@ fn handle_download(app: &AppHandle, event: DownloadEvent<'_>) {
                 json!({ "state": "started", "name": name }),
             );
         }
-        DownloadEvent::Finished { url: _, path, success } => {
+        DownloadEvent::Finished {
+            url: _,
+            path,
+            success,
+        } => {
             let _ = app.emit_to(
                 "chrome",
                 "download",
@@ -311,62 +334,73 @@ fn handle_download(app: &AppHandle, event: DownloadEvent<'_>) {
 /// Linux), so this always trampolines through `run_on_main_thread`.
 fn spawn_webview(app: &AppHandle, id: u32) {
     let app = app.clone();
-    let _ = app.clone().run_on_main_thread(move || {
-        let Some(window) = app.get_window("main") else { return };
-        let (url, muted, zoom, is_active) = {
-            let inner = lock(&app);
-            let Some(tab) = inner.tabs.iter().find(|t| t.id == id) else { return };
-            (tab.url.clone(), tab.muted, tab.zoom, inner.active == Some(id))
-        };
+    std::thread::spawn(move || {
+        let _ = app.clone().run_on_main_thread(move || {
+            let Some(window) = app.get_window("main") else {
+                return;
+            };
+            let (url, muted, zoom, is_active) = {
+                let inner = lock(&app);
+                let Some(tab) = inner.tabs.iter().find(|t| t.id == id) else {
+                    return;
+                };
+                (
+                    tab.url.clone(),
+                    tab.muted,
+                    tab.zoom,
+                    inner.active == Some(id),
+                )
+            };
 
-        let label = format!("tab-{id}");
-        let script = reporter_script(&app, muted, zoom);
-        let builder = WebviewBuilder::new(&label, resolve_webview_url(&url))
-            .initialization_script(script.as_str())
-            .on_page_load(|webview, payload| {
-                on_page_load(&webview, payload.url(), payload.event());
-            })
-            .on_download({
-                let app = app.clone();
-                move |_wv, event| {
-                    handle_download(&app, event);
-                    true
-                }
-            });
-
-        let size = window.inner_size().unwrap_or(PhysicalSize::new(1280, 820));
-        let scale = window.scale_factor().unwrap_or(1.0);
-        let chrome_px = (CHROME_H * scale).round() as u32;
-        match window.add_child(
-            builder,
-            PhysicalPosition::new(0, chrome_px as i32),
-            PhysicalSize::new(size.width, size.height.saturating_sub(chrome_px)),
-        ) {
-            Ok(view) => {
-                if is_active {
-                    let others: Vec<String> = {
-                        let inner = lock(&app);
-                        inner
-                        .tabs
-                        .iter()
-                        .filter(|t| !t.asleep && t.id != id)
-                        .map(|t| t.label())
-                        .collect()
-                    };
-                    for label in others {
-                        if let Some(v) = app.get_webview(&label) {
-                            let _ = v.hide();
-                        }
+            let label = format!("tab-{id}");
+            let script = reporter_script(&app, muted, zoom);
+            let builder = WebviewBuilder::new(&label, resolve_webview_url(&url))
+                .initialization_script(script.as_str())
+                .on_page_load(|webview, payload| {
+                    on_page_load(&webview, payload.url(), payload.event());
+                })
+                .on_download({
+                    let app = app.clone();
+                    move |_wv, event| {
+                        handle_download(&app, event);
+                        true
                     }
-                    let _ = view.set_focus();
-                } else {
-                    let _ = view.hide();
+                });
+
+            let size = window.inner_size().unwrap_or(PhysicalSize::new(1280, 820));
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let chrome_px = (CHROME_H * scale).round() as u32;
+            match window.add_child(
+                builder,
+                PhysicalPosition::new(0, chrome_px as i32),
+                PhysicalSize::new(size.width, size.height.saturating_sub(chrome_px)),
+            ) {
+                Ok(view) => {
+                    if is_active {
+                        let others: Vec<String> = {
+                            let inner = lock(&app);
+                            inner
+                                .tabs
+                                .iter()
+                                .filter(|t| !t.asleep && t.id != id)
+                                .map(|t| t.label())
+                                .collect()
+                        };
+                        for label in others {
+                            if let Some(v) = app.get_webview(&label) {
+                                let _ = v.hide();
+                            }
+                        }
+                        let _ = view.set_focus();
+                    } else {
+                        let _ = view.hide();
+                    }
                 }
+                Err(e) => eprintln!("svif: failed to create webview: {e}"),
             }
-            Err(e) => eprintln!("svif: failed to create webview: {e}"),
-        }
-        layout(&app);
-        broadcast(&app);
+            layout(&app);
+            broadcast(&app);
+        });
     });
 }
 
@@ -446,7 +480,9 @@ pub fn select_tab(app: &AppHandle, id: u32) {
 pub fn close_tab(app: &AppHandle, id: u32) {
     let (label, next_active, was_active, now_empty) = {
         let mut inner = lock(app);
-        let Some(idx) = inner.tabs.iter().position(|t| t.id == id) else { return };
+        let Some(idx) = inner.tabs.iter().position(|t| t.id == id) else {
+            return;
+        };
         let tab = inner.tabs.remove(idx);
         if tab.url != NEWTAB {
             inner.closed.push(tab.url.clone());
@@ -491,7 +527,9 @@ pub fn sleep_tab(app: &AppHandle, id: u32) {
         if inner.active == Some(id) {
             return; // never sleep the visible tab
         }
-        let Some(tab) = inner.tabs.iter_mut().find(|t| t.id == id && !t.asleep) else { return };
+        let Some(tab) = inner.tabs.iter_mut().find(|t| t.id == id && !t.asleep) else {
+            return;
+        };
         tab.asleep = true;
         tab.loading = false;
         tab.playing = false;
@@ -520,7 +558,9 @@ fn set_zoom(app: &AppHandle, id: u32, pct: u32) {
     let pct = pct.clamp(25, 300);
     let label = {
         let mut inner = lock(app);
-        let Some(tab) = inner.tabs.iter_mut().find(|t| t.id == id) else { return };
+        let Some(tab) = inner.tabs.iter_mut().find(|t| t.id == id) else {
+            return;
+        };
         tab.zoom = pct;
         tab.label()
     };
@@ -533,7 +573,9 @@ fn set_zoom(app: &AppHandle, id: u32, pct: u32) {
 fn set_muted(app: &AppHandle, id: u32, muted: bool) {
     let label = {
         let mut inner = lock(app);
-        let Some(tab) = inner.tabs.iter_mut().find(|t| t.id == id) else { return };
+        let Some(tab) = inner.tabs.iter_mut().find(|t| t.id == id) else {
+            return;
+        };
         tab.muted = muted;
         if muted {
             tab.audible = false;
@@ -586,7 +628,12 @@ pub fn do_action(app: &AppHandle, action: &str) {
             if let Some(id) = active {
                 let cur = {
                     let inner = lock(app);
-                    inner.tabs.iter().find(|t| t.id == id).map(|t| t.zoom).unwrap_or(100)
+                    inner
+                        .tabs
+                        .iter()
+                        .find(|t| t.id == id)
+                        .map(|t| t.zoom)
+                        .unwrap_or(100)
                 };
                 let next = match action {
                     "zoom_reset" => 100,
@@ -600,7 +647,12 @@ pub fn do_action(app: &AppHandle, action: &str) {
             if let Some(id) = active {
                 let muted = {
                     let inner = lock(app);
-                    inner.tabs.iter().find(|t| t.id == id).map(|t| t.muted).unwrap_or(false)
+                    inner
+                        .tabs
+                        .iter()
+                        .find(|t| t.id == id)
+                        .map(|t| t.muted)
+                        .unwrap_or(false)
                 };
                 set_muted(app, id, !muted);
             }
@@ -617,7 +669,11 @@ pub fn do_action(app: &AppHandle, action: &str) {
                         .position(|t| Some(t.id) == inner.active)
                         .unwrap_or(0);
                     let n = inner.tabs.len();
-                    let next = if action == "next_tab" { (idx + 1) % n } else { (idx + n - 1) % n };
+                    let next = if action == "next_tab" {
+                        (idx + 1) % n
+                    } else {
+                        (idx + n - 1) % n
+                    };
                     Some(inner.tabs[next].id)
                 }
             };
@@ -626,13 +682,10 @@ pub fn do_action(app: &AppHandle, action: &str) {
             }
         }
         a if a.starts_with("tab_") => {
-            let target = a[4..]
-                .parse::<usize>()
-                .ok()
-                .and_then(|n| {
-                    let inner = lock(app);
-                    inner.tabs.get(n - 1).map(|t| t.id)
-                });
+            let target = a[4..].parse::<usize>().ok().and_then(|n| {
+                let inner = lock(app);
+                inner.tabs.get(n - 1).map(|t| t.id)
+            });
             if let Some(id) = target {
                 select_tab(app, id);
             }
@@ -671,11 +724,16 @@ struct Session {
 }
 
 fn session_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("session.json"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|d| d.join("session.json"))
 }
 
 pub fn save_session(app: &AppHandle) {
-    let Some(path) = session_path(app) else { return };
+    let Some(path) = session_path(app) else {
+        return;
+    };
     let session = {
         let inner = lock(app);
         Session {
@@ -730,7 +788,11 @@ fn restore_session(app: &AppHandle) -> bool {
             inner.tabs.push(Tab {
                 id,
                 url: t.url.clone(),
-                title: if t.title.is_empty() { "New Tab".into() } else { t.title.clone() },
+                title: if t.title.is_empty() {
+                    "New Tab".into()
+                } else {
+                    t.title.clone()
+                },
                 favicon: None,
                 loading: false,
                 load_started: None,
@@ -779,9 +841,9 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         .effects(WindowEffectsConfig {
             // First supported effect wins per platform; the rest are ignored.
             effects: vec![
-                WindowEffect::Sidebar,  // macOS vibrancy
-                WindowEffect::Acrylic,  // Windows 11
-                WindowEffect::Blur,     // Windows 10
+                WindowEffect::Sidebar, // macOS vibrancy
+                WindowEffect::Acrylic, // Windows 11
+                WindowEffect::Blur,    // Windows 10
             ],
             ..Default::default()
         });
@@ -920,7 +982,12 @@ pub fn tabs_snapshot(webview: Webview, app: AppHandle) -> Result<Value, String> 
 }
 
 #[tauri::command]
-pub fn tab_new(webview: Webview, app: AppHandle, url: Option<String>, background: Option<bool>) -> Result<(), String> {
+pub fn tab_new(
+    webview: Webview,
+    app: AppHandle,
+    url: Option<String>,
+    background: Option<bool>,
+) -> Result<(), String> {
     require_chrome(&webview)?;
     create_tab(&app, url, background.unwrap_or(false));
     Ok(())
@@ -1043,7 +1110,14 @@ pub fn find_in_page(
 pub fn clear_browsing_data(webview: Webview, app: AppHandle) -> Result<(), String> {
     require_chrome(&webview)?;
     let mut cleared = false;
-    let labels: Vec<String> = { lock(&app).tabs.iter().filter(|t| !t.asleep).map(|t| t.label()).collect() };
+    let labels: Vec<String> = {
+        lock(&app)
+            .tabs
+            .iter()
+            .filter(|t| !t.asleep)
+            .map(|t| t.label())
+            .collect()
+    };
     for label in labels {
         if let Some(view) = app.get_webview(&label) {
             if view.clear_all_browsing_data().is_ok() {
@@ -1070,7 +1144,11 @@ pub fn open_devtools(webview: Webview, app: AppHandle) -> Result<(), String> {
 // ---- commands invocable by pages (reporter script) ----
 
 #[tauri::command]
-pub fn report_page_state(webview: Webview, app: AppHandle, patch: Map<String, Value>) -> Result<(), String> {
+pub fn report_page_state(
+    webview: Webview,
+    app: AppHandle,
+    patch: Map<String, Value>,
+) -> Result<(), String> {
     let id = require_tab(&webview)?;
     {
         let mut inner = lock(&app);
@@ -1117,9 +1195,29 @@ pub fn open_tab_from_page(webview: Webview, app: AppHandle, url: String) -> Resu
 pub fn page_shortcut(webview: Webview, app: AppHandle, action: String) -> Result<(), String> {
     require_tab(&webview)?;
     const ALLOWED: &[&str] = &[
-        "new_tab", "close_tab", "reopen_tab", "focus_address", "reload", "back", "forward",
-        "find", "zoom_in", "zoom_out", "zoom_reset", "toggle_mute", "next_tab", "prev_tab",
-        "tab_1", "tab_2", "tab_3", "tab_4", "tab_5", "tab_6", "tab_7", "tab_8", "tab_9",
+        "new_tab",
+        "close_tab",
+        "reopen_tab",
+        "focus_address",
+        "reload",
+        "back",
+        "forward",
+        "find",
+        "zoom_in",
+        "zoom_out",
+        "zoom_reset",
+        "toggle_mute",
+        "next_tab",
+        "prev_tab",
+        "tab_1",
+        "tab_2",
+        "tab_3",
+        "tab_4",
+        "tab_5",
+        "tab_6",
+        "tab_7",
+        "tab_8",
+        "tab_9",
     ];
     if ALLOWED.contains(&action.as_str()) {
         do_action(&app, &action);
