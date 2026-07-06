@@ -7,6 +7,14 @@
   "use strict";
   if (window.__SB_REPORTER__) return;
   window.__SB_REPORTER__ = true;
+    // WebView2 (Windows) runs init scripts in EVERY frame — cross-origin ad
+  // iframes and about:blank subframes included; WKWebView (macOS) runs them in
+  // the main frame only, which is what the rest of this script assumes. Without
+  // this guard, subframe copies report their own url/title (tab shows
+  // "ad.amazon" or blanks), patch history in about:blank frames (YouTube's
+  // pushState throws SecurityError), and flood IPC from per-frame intervals
+  // (the hang). Restore the main-frame-only invariant on every platform.
+  if (window.top !== window.self) return;
 
   const CFG = __SB_CONFIG__; // injected by Rust: { mac, muted, zoom, theme }
   window.__SB_CFG = CFG;
